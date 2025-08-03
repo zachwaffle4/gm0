@@ -3,22 +3,26 @@
 Reading and Writing to Hardware
 ===============================
 
-When using the FTC\ |reg| SDK, there are a variety of built in hardware classes which can be used to communicate with hardware on the robot such as DC Motors, :term:`Servos <Servo>`, and Sensors.
+When using the FTC\ |reg| SDK, there are a variety of built in hardware classes which can be used to communicate with hardware on the robot such as DC Motors, :term:`Servos <Servo>`, and sensors.
 
 Creating and Instantiating Hardware Objects
 -------------------------------------------
 
-The first thing required to properly create an object is to import its class. In Android Studio, if the class is referenced without being imported Alt+Enter can be pressed to automatically import it. After it is imported, the next step is to create the object::
+The first thing required to properly create an object is to import its class. In Android Studio, if the class is referenced without being imported, it will show up with red squiggly underlines and say that it "Cannot resolve symbol [Class name]". To resolve this, click on the red squiggly lines and press ``alt+enter`` (macOS: ``⌥`` + ``↵``) to automatically import it. After it is imported, the next step is to create the object::
 
    private DcMotor liftMotor;
 
 After the object is created, it must be instantiated. Part of the ``OpMode`` superclass is something called ``hardwareMap``. ``hardwareMap`` is used in the FTC SDK to instantiate objects rather than calling a constructor.
 
+.. warning:: ``hardwareMap`` is only accessible inside classes that extend ``OpMode`` and ``LinearOpMode``, and only once the program actually starts: ``init()`` for ``OpMode`` and ``runOpMode()`` for ``LinearOpMode``. 
+   
+   To use ``hardwareMap`` in other classes, you should `make hardwareMap a parameter of your constructor. <https://cookbook.dairy.foundation/common_ds_errors/npe_at_init/npe_at_init.html#common-issues-hardware-devices-in-external-classes>`_
+
 It contains all of the information entered into the configuration on the Robot Controller, such as names of hardware and what port it is plugged into. Here is an example of instantiating the motor we created above::
 
    liftMotor = hardwareMap.get(DcMotor.class, "Lift Motor");
 
-Whatever sensor you are using, you will pass that class into the spot where ``DcMotor.class`` is. For example, if liftMotor was a Servo, ``Servo.class`` would be passed instead.
+Whatever hardware device you are using, you will pass that class into the spot where ``DcMotor.class`` is. For example, if liftMotor was a ``Servo``, ``Servo.class`` would be passed instead.
 
 For the second argument, you pass whatever the device is named in the Robot Controller configuration. ``hardwareMap`` will then go find what port the device with that name is plugged into, which allows the hardware to be accessed.
 
@@ -33,22 +37,29 @@ DC Motor
    DcMotor leftMotor = hardwareMap.get(DcMotor.class, "Left Motor");
    DcMotor rightMotor = hardwareMap.get(DcMotor.class, "Right Motor");
 
-   DcMotor elevatorMotor = hardware.get(DcMotor.class, "Elevator Motor");
-   DcMotor intakeMotor = hardware.get(DcMotor.class, "Intake Motor");
+   DcMotor elevatorMotor = hardwareMap.get(DcMotor.class, "Elevator Motor");
+   DcMotor intakeMotor = hardwareMap.get(DcMotor.class, "Intake Motor");
 
 After a ``DcMotor`` is instantiated, there are a few variables you can set to affect how the DC Motor runs. The first of these is direction::
 
    leftMotor.setDirection(DcMotor.Direction.REVERSE);
    rightMotor.setDirection(DcMotor.Direction.FORWARD);
 
-Changing the direction of the motor does exactly what should be expected, it changes the direction. If a power of 1 is applied to the motor while it is in forward mode, it will turn one direction. If it is in reverse, a power of 1 will spin it in the other direction. If you face the shaft of the motor towards you, forward is counterclockwise (with the exception of NeveRest motors).
+As expected, changing the direction of the motor reverses the direction it turns. If a power of 1 is applied to the motor while it is in forward mode, it will turn one direction. However, if it is in reverse, a power of 1 will spin it in the other direction. If you face the shaft of the motor towards you, forward is counterclockwise (with the exception of NeveRest motors).
 
 Next, there are two zero power behaviors that can be adjusted::
 
    leftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
    rightMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
-Changing this variable affects how the DC Motor behaves while a power of 0 is applied. ``BRAKE`` will cause the motor to try and slow itself down if it is moving (it will NOT cause the motor to hold its position if not already moving), while ``FLOAT`` causes the motor to glide to a stop, letting friction do all the work.
+Changing this variable affects how the DC Motor behaves while a power of 0 is applied. ``BRAKE`` will cause the motor to try and slow itself down if it is moving (it will NOT cause the motor to hold its position), while ``FLOAT`` causes the motor to glide to a stop, letting friction do all the work.
+
+.. dropdown:: Advanced ZeroPowerBehavior Details
+   :chevron: down-up
+
+   ``BRAKE`` mode is really using the generated electricity from the motor moving and feeding it back into the motor in a way that opposes the direction the motor is moving.
+
+   ``FLOAT``, by contrast, simply does not feed this generated electricity back into the motor.
 
 Finally, there are four different run modes that can be used with DC motors: ::
 
@@ -58,9 +69,16 @@ Finally, there are four different run modes that can be used with DC motors: ::
    elevatorMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
    intakeMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
 
-It is important to note that encoder values can be read in any of these modes provided an encoder is properly plugged in. These modes just change how the motor reacts to these encoder values. `The REV Robotics documentation has an explanation of all four run modes <https://docs.revrobotics.com/duo-control/programming/using-encoder-feedback#choosing-a-motor-mode>`_.
 
-.. warning:: ``RUN_TO_POSITION`` can be a convenient way to control a single-motor mechanism, as it offloads all control work; however, since every motor is dealt with independently, it is inadvisable to use this on mechanisms with multiple motors, especially drivetrains.
+
+`The REV Robotics documentation has an explanation of all four run modes <https://docs.revrobotics.com/duo-control/programming/using-encoder-feedback#choosing-a-motor-mode>`_.
+
+.. important:: Encoder values can be read in any of these modes, provided an encoder is properly plugged in. These modes just change how the motor reacts to these encoder values. 
+
+.. warning:: 
+   In general, it is **NOT** recommended to use ``RUN_TO_POSITION``.
+   
+   ``RUN_TO_POSITION`` can be a convenient way to control a single-motor mechanism, as it offloads all control work; however, since every motor is dealt with independently, it is inadvisable to use this on mechanisms with multiple motors, especially drivetrains. Additionally, since ``RUN_TO_POSITION`` internally runs a :term:`PID controller <PID>` at a fixed rate of 20 times per second, is difficult to tune, and cannot incorporate any kind of additional feedforward or feedback gains, custom PIDs are recommended over ``RUN_TO_POSITION``.
 
 Encoders
 ~~~~~~~~
@@ -74,7 +92,7 @@ Encoders
 
          There are both absolute and relative encoders. An absolute encoder will report at exactly what angle the shaft is compared to its absolute "zero". A relative encoder will report how far the :term:`shaft <Shaft>` has rotated since it started tracking (for example, when autonomous starts). Relative encoders will have a quadrature output, whereas absolute encoders generally have analog or i2c outputs.
 
-         Encoders are used to help find the position of where the robot, or one of its mechanisms, is.
+         Encoders are used to help find the position of where the robot, or one of its mechanisms, is. Read more on the :ref:`encoder page <encoders-page>`
 
 While all FTC legal motors contain built in relative quadrature encoders, they must be wired separately and are not required for use. External encoders may be used and plugged into an encoder port so long as they use the quadrature communication protocol.
 
@@ -116,7 +134,7 @@ Digital IO
 
 ::
 
-   DigitalChannel digitalDevice = hardwareMap.get(DigitalChannel.class, "digital device");
+   DigitalChannel digitalDevice = hardwareMap.get(DigitalChannel.class, "Digital Device");
 
 A DigitalChannel has a couple main methods. ``setMode()`` is used to set the port as either an OUTPUT or INPUT port, ``getState()`` returns the current state of the port (only works in INPUT mode), and ``setState()`` sets the state of the port (only works in OUTPUT mode)
 
@@ -129,7 +147,7 @@ Analog Input
 
 ::
 
-   AnalogInput analogInput = hardwareMap.get(AnalogInput.class, "analog input");
+   AnalogInput analogInput = hardwareMap.get(AnalogInput.class, "Analog Input");
 
 An ``AnalogInput`` has one main method: ``getVoltage()`` which is used to get the current input voltage to the port.
 

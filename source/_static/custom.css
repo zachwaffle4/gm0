@@ -62,3 +62,7 @@ div.admonition-terms dt {
 div.admonition-terms dd {
     margin: 0em;
 }
+details.sd-dropdown summary.sd-summary-title {
+    background-color: transparent !important;
+    border: rgb(245,127,37) solid !important; 
+}
