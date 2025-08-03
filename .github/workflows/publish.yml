@@ -34,7 +34,7 @@ jobs:
         make html
     - uses: actions/upload-pages-artifact@v3 # or specific "vX.X.X" version tag for this action
       with:
-         path: /build/html/ # Replace with the actual path to your built HTML files     
+         path: /build/html # Replace with the actual path to your built HTML files     
 
   # Deployment job
   deploy:
